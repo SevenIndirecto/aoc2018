@@ -29,3 +29,35 @@ for(let id of ids) {
 }
 
 console.log('Hits 2:', hits2, 'Hits 3:', hits3);
+
+// star2
+const getDiff = (a, b) => {
+	// console.log(a, b);
+	let diffs = 0;
+	let shared = '';
+	for (let i = 0; i < a.length; i++) {
+		if (a.charAt(i) !== b.charAt(i)) {
+			diffs++;
+		
+			if (diffs > 1) {
+				return '';
+			}
+		} else {
+			shared += a.charAt(i);
+		}
+
+	}
+	return shared;
+}
+
+for(let i = 0, length = ids.length; i < length; i++) {
+	for (let j = i + 1; j < length; j++) {
+		let sharedChars = getDiff(ids[i], ids[j]);
+		if (sharedChars !== '') console.log(sharedChars, ids[i], ids[j]);
+		if (sharedChars.length === ids[i].length - 1) {
+			console.log('Found hits: ', ids[i], ids[j], 'Shared: ', sharedChars);
+			i = length;
+			break;
+		}
+	}
+}
