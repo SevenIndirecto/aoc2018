@@ -19,26 +19,25 @@ const claims = contents.split('\n').filter(v => v != '').map(input => {
 
 // #1 @ 872,519: 18x18
 
-const fabricSize = 1000;
-const claimedSquares = new Array(fabricSize);
-const copy = new Array(fabricSize).fill(0);
-for (let i = 0; i < fabricSize; i++) {
-	claimedSquares[i] = copy.slice(0);
-}
 let claimed = new Map();
 
 let overlaps = [];
+let overlappingIds = new Set();
+
 for (claim of claims) {
 	for (let x = claim.left; x < claim.left + claim.width; x++) {
 		for (let y = claim.top; y < claim.top + claim.height; y++) {
 			let key = `${x},${y}`;
 			if (claimed.has(key)) {
-				if (claimed.get(key) === 1) {
+				if (claimed.get(key)[0] === 1) {
 					overlaps.push(claim.id);
+					// Add previous id
+					overlappingIds.add(claimed.get(key)[1]);
 				}
-				claimed.set(key, claimed.get(key) + 1);
+				overlappingIds.add(claim.id);
+				claimed.set(key, [claimed.get(key)[0] + 1]);
 			} else {
-				claimed.set(key, 1);
+				claimed.set(key, [1,claim.id]);
 			}
 
 		}
@@ -46,3 +45,5 @@ for (claim of claims) {
 }
 
 console.log('Overlapping squares: ', overlaps.length);
+let unique = claims.filter(({id}) => !overlappingIds.has(id)); 
+console.log('Non-overlapping: ', unique);
