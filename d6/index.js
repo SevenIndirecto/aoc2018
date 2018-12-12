@@ -4,7 +4,7 @@ const input = 'input.txt';
 let points = fs.readFileSync(input, 'utf8').trim().split('\n');
 points = points.map(point => point.split(', ').map(u => parseInt(u)));
 
-// let points = [[1,1],[1,6],[8,3],[3,4],[5,5],[8,9]];
+// const points = [[1,1],[1,6],[8,3],[3,4],[5,5],[8,9]];
 
 let maxX = points.reduce((maxX, [x,]) => x > maxX ? x : maxX, 0);
 let maxY = points.reduce((maxY, [,y]) => y > maxY ? y : maxY, 0);
@@ -97,3 +97,30 @@ const maxArea = Array.from(finitePoints.values()).reduce(
 );
 console.log('Max Area:', maxArea);
 
+// STAR 2 
+const MAX_DISTANCE = 1e4;
+
+let regionSize = 0;
+
+const isSumDistanceInRange = (checkPoint, range) => {
+    let sum = 0;
+
+    for (point of points) {
+        sum += getDistance(checkPoint, point);
+        
+        if (sum >= range) {
+            return false;
+        }
+    }
+    return sum < range;
+}
+
+for(let x = 0; x < maxX; x++) {
+    for(let y = 0; y <= maxY; y++) {
+        if (isSumDistanceInRange([x,y], MAX_DISTANCE)) {
+            regionSize++;
+        }
+    }
+}
+
+console.log('Start 2 region size:', regionSize);
