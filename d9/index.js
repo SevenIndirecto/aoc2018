@@ -4,7 +4,7 @@ const inputFile = 'input.txt';
 let input = fs.readFileSync(inputFile, 'utf8').trim();
 let matches = input.match(/(\d+) players; last marble is worth (\d+) points/);
 const NUM_PLAYERS = parseInt(matches[1]);
-const LAST_MARBLE = parseInt(matches[2]);
+const LAST_MARBLE = parseInt(matches[2]) * 100;
 
 const players = new Array(NUM_PLAYERS).fill(0);
 console.log('Players', NUM_PLAYERS, 'Last marble', LAST_MARBLE);
