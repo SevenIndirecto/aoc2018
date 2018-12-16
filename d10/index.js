@@ -49,10 +49,10 @@ const drawPoints = (pointsToDraw) => {
     let height = Math.abs(extremes.minY - extremes.maxY) + 1;
     
     let viewPortWidth = 100;
-    let viewPortHeight = 50;
+    let viewPortHeight = 20;
 
-    console.log(extremes, width, height);
-    if (width > 100 || height > 50) {
+    // console.log(extremes, width, height);
+    if (width > 100 || height > 20) {
         diverging = true;
         return;
     }
@@ -82,7 +82,9 @@ const drawPoints = (pointsToDraw) => {
 let seconds = 0;
 while (true) {
     seconds++;
-    console.log('Seconds passed', seconds);
+    if (haveConvergedPreviously) {
+        console.log('Seconds passed', seconds);
+    }
     processTick();
     drawPoints(points);
 
