@@ -90,6 +90,21 @@ const getFirstCollision = () => {
     return false;
 };
 
+const clearCollisions = () => {
+    let positions = new Map();
+    for (cart of STATE.carts) {
+        let key = `${cart.x},${cart.y}`;
+        if (positions.has(key)) {
+            // Clear collision
+            STATE.carts = STATE.carts.filter(filterCart => {
+                return filterCart.id !== cart.id && filterCart.id !== positions.get(key);
+            });
+            break;
+        }
+        positions.set(key, cart.id);
+    }
+}
+
 const processTick = () => {
     STATE.tick++;
     STATE.carts = STATE.carts.sort((cartA, cartB) => {
@@ -175,10 +190,12 @@ const processTick = () => {
         cart.direction = newDirection;
         cart.lastTick = STATE.tick;
 
-        if (getFirstCollision()) {
-            console.log('Detected collision');
-            return false;
-        }
+        
+        clearCollisions()
+        // if (getFirstCollision()) {
+        //    console.log('Detected collision');
+        //    return false;
+        // }
     }
 
     console.log(STATE.carts);
@@ -186,9 +203,15 @@ const processTick = () => {
 
 let collision = false;
 
-while (!collision) {
+// while (!collision) {
+//     processTick();
+//     collision = getFirstCollision();
+// }
+
+
+// console.log('First collision', collision);
+
+while (STATE.carts.length > 1) {
     processTick();
-    collision = getFirstCollision();
 }
 
-console.log('First collision', collision);
