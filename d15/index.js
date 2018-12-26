@@ -5,6 +5,7 @@ let input = fs.readFileSync(inputFile, 'utf8').trim().split('\n');
 
 class Unit {
     constructor(x, y) {
+        this.startSquare = [y,x];
         this.y = y;
         this.x = x;
         this.hp = 200;
@@ -28,6 +29,13 @@ class Unit {
         return targets;
     }
 
+    toString() {
+        let out = `${this.isAlive() ? '[o]' : '[x]'} ${this.constructor.name}`;
+        out += ` x: ${this.x} y: ${this.y}, hp: ${this.hp}, a: ${this.attackPower}`;
+
+        return out;
+    }
+
     getSquare() {
         return [this.y, this.x];
     }
@@ -41,6 +49,8 @@ class Unit {
         return this.hp > 0;
     }
 }
+
+
 class Elf extends Unit {
     constructor(x,y) {
         super(x,y);
@@ -55,7 +65,7 @@ class Goblin extends Unit {
 }
 
 const map = [];
-const units = [];
+let units = [];
 
 // Read map
 for (let y = 0; y < input.length; y++) {
@@ -230,15 +240,102 @@ const processTurn = () => {
 }
 
 const groupWins = (group) => units.filter(u => u.enemy === group && u.isAlive()).length < 1;
+const isAnElfDead = () => units.filter(u => u.constructor.name === 'Elf' && !u.isAlive()).length > 0;
 
-drawMap();
-do {    
+let tested = [[3,false]];
+
+const reset = (newAttackPower) => {
+    turn = 0;
+    console.log('Test power:', newAttackPower, tested);
+
+    // New power has already been tested, end.
+    if (tested.filter(([power]) => newAttackPower === power).length > 0) {
+        // Get first
+        console.log('Power has already been tested.');
+        return false;
+    }
+
+    tested.push([newAttackPower, null]);
+
+    for (u of units) {
+        if (u.constructor.name === 'Elf') {
+            u.attackPower = newAttackPower;
+        }
+        u.hp = 200;
+        u.y = u.startSquare[0];
+        u.x = u.startSquare[1];
+    }
+
+    return true;
+}
+
+// Start with testing 30
+reset(30);
+let lastTurn = 0;
+
+while (true) {  
     processTurn();
     drawMap();
-    console.log(units);
-} while (!groupWins('Elf') && !groupWins('Goblin'))
+    
+    for (unit of units) {
+        console.log(unit.toString());
+    }
+    lastTurn = turn;
+
+    if (groupWins('Elf')) {
+        // Mask as victorious
+        tested[tested.length - 1][1] = true;
+        // Try to lower power
+        let current = tested[tested.length - 1][0];
+        let highestLower = tested.reduce((acc, test) => {
+            if (!acc[0]) {
+                return test; 
+            }
+            if (test[0] < acc[0]) {
+                return test;
+            }
+            return acc;
+        }, [false, false])[0];
+       
+        let newPower = Math.ceil((current + highestLower) / 2);        
+    
+        if(!reset(newPower)) break;
+    }
+
+    if (isAnElfDead()) {
+        // Mark as fail
+        tested[tested.length - 1][1] = false;
+        let current = tested[tested.length - 1][0];
+        
+        // Get lowest higher
+        let lowestHigher = tested
+            .filter(([power, elvesWin]) => power > current && elvesWin)
+            .reduce((acc, [power]) => power < acc ? power : acc, 205);
+        
+        let newPower;
+        // Has won before
+        if (lowestHigher < 205) {
+            newPower = Math.ceil((current + lowestHigher) / 2);
+        } else {
+            newPower = current + 5;
+        }       
+
+        if(!reset(newPower)) break;
+    }
+}
+
+let lowestWinning = tested.reduce((acc, test) => {
+    if (!acc[1]) {
+        return test;
+    }
+    if (test[1] && test[0] < acc[0]) {
+        return test;
+    }
+    return acc;
+}, [false, false]);
 
 let totalHP = units.filter(u => u.isAlive()).reduce((sum, u) => u.hp + sum, 0);
-console.log('Outcome: ', (turn - 1) * totalHP, 'Total HP', totalHP);
+console.log('Outcome: ', (lastTurn - 1) * totalHP, 'Total HP', totalHP);
 console.log('Winners: ', groupWins('Elf') ? 'Elves' : 'Goblins');
+console.log('Lowest winning power: ', lowestWinning, tested);
 
