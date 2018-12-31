@@ -4,45 +4,37 @@ const inputFile = process.argv[2] || 'input.txt';
 let input = fs.readFileSync(inputFile, 'utf8').trim();
 
 class Room {
-    constructor() {
+    constructor(id) {
         // ROOMS 0 = N, 1 = E, 2 = S, 3 = W
         this.rooms = new Array(4).fill(null);
-        this.shortest = '';
+        // this.shortest = '';
+        this.distance = -1;
+        this.id = id;
     }
 }
 
-let state = {
+let s = {
     root: null,
     current: null,
-    rooms: [],
+    rooms: new Map(),
+    input,
+    roomNonce: 0,
 }
 
-const MODE_APPEND = 0;
-const MODE_EXTRACT_GROUP = 1;
-const MODE_EXTRACT_BRANCHES = 2;
+s.root = new Room(s.roomNonce++);
+s.root.distance = 0;
+s.rooms.set(0, s.root);
 
-const appendPaths = (pathsToAppendTo, pathsToAppend) => {
-    let paths = [];
-    for (appendee of pathsToAppendTo) {
-        for (appendix of pathsToAppend) {
-            paths.push(appendee + appendix);
-        }
-    }
-
-    return paths;
-};
-
-const getPaths = (regex) => {
+const buildRooms = () => {
+    // char position
     let cp = 0;
-    let segment = '';
-    let paths = [''];
-    let branches = [];
-    let mode = MODE_APPEND;
-
     let braceBalance = 0;
+    let roots = new Map();
+    roots.set(0, [s.root.id]);
+    let branches = new Map();
 
-    while (cp < regex.length) {
-        let ch = regex.charAt(cp);
+    while (cp < s.input.length) {
+        let ch = s.input.charAt(cp);
 
         switch (ch) {
             case '$':
@@ -50,121 +42,85 @@ const getPaths = (regex) => {
                 break;
             case '(':
                 braceBalance++;
-                segment += ch;
+                roots.set(braceBalance, [...roots.get(braceBalance - 1)]);
+                branches.set(braceBalance, []);
                 break;
             case ')':
+                if (s.input.charAt(cp - 1) === '|') {
+                    branches.set(
+                        braceBalance, 
+                        [...branches.get(braceBalance), ...roots.get(braceBalance)]
+                    );
+                }
+                roots.set(braceBalance - 1, [...branches.get(braceBalance)]);
+                branches.delete(braceBalance);
+                roots.delete(braceBalance);
                 braceBalance--;
-                segment += ch;
                 break;
             case '|':
-                if (mode === MODE_APPEND) {
-                    // Start extracting branches
-                    branches = [...appendPaths(paths, [segment])];
-                    mode = MODE_EXTRACT_BRANCHES;
-                    segment = '';
-                } else if (mode === MODE_EXTRACT_BRANCHES) {
-                    if (braceBalance === 0) {
-                        // TODO: Handle empty?
-                        branches = [...branches, ...getPaths(segment)];
-                        segment = '';
-                    } else {
-                        segment += ch;
-                    }
-                } else {
-                    segment += ch;
-                }
+                branches.set(
+                    braceBalance, 
+                    [...branches.get(braceBalance), ...roots.get(braceBalance)]
+                );
+                roots.set(braceBalance, [...roots.get(braceBalance - 1)]);
                 break;
             default:
-                segment += ch;
+                let nextRoom = -1;
+                switch (ch) {
+                    case 'N':
+                        nextRoom = 0;
+                        break;
+                    case 'E':
+                        nextRoom = 1;
+                        break;
+                    case 'S':
+                        nextRoom = 2;
+                        break;
+                    case 'W':
+                        nextRoom = 3;
+                        break;
+                    default:
+                        console.log('INVALID MOVE', move);
+                        process.exit();
+                }
+
+                let currentRoomIDs = roots.get(braceBalance);
+
+                for (let i = 0; i < currentRoomIDs.length; i++) {
+                    let current = s.rooms.get(currentRoomIDs[i]);
+
+                    if (!current.rooms[nextRoom]) {                        
+                        current.rooms[nextRoom] = new Room(s.roomNonce++);
+                        s.rooms.set(current.rooms[nextRoom].id, current.rooms[nextRoom]);
+                    }
+                    // Set current room as predecessor of the room we're entering
+                    current.rooms[nextRoom].rooms[(nextRoom + 2) % 4] = current;
+                    // Set new current in roots for level
+                    currentRoomIDs[i] = current.rooms[nextRoom].id;
+                }
         }
-
-        // If we're extracting a group, keep extracting until we find an even balance for braces
-        if (mode === MODE_EXTRACT_GROUP) {
-            if (braceBalance === 0) {
-                // Finished extracting string to parse
-                paths = appendPaths(paths, getPaths(segment.slice(0, -1)));
-                mode = MODE_APPEND;
-                segment = '';
-            }
-        } else if (mode === MODE_APPEND) {
-            if (braceBalance > 0) {
-                // Start extracting a group
-                mode = MODE_EXTRACT_GROUP;
-                paths = appendPaths(paths, [segment.slice(0, -1)]);
-                segment = '';
-            }
-        }
-
-        cp++;
+        cp++
     }
-
-    if (mode === MODE_EXTRACT_BRANCHES) {
-        // Append current segmenet as last branch
-        // TODO: If ends with | or ) problem?
-        
-        return [...branches, ...getPaths(segment)];
-    }
-    
-    return appendPaths(paths, [segment]);
 };
 
-// For each path construct rooms
-state.root = new Room();
-state.current = state.root;
-state.rooms = [state.current];
-
-const processPath = (path) => {
-    let moves = path.split('');
-    let nextRoom = 0;
-    let pathSegment = '';
-    
-    for (move of moves ) {
-        pathSegment += move;
-
-        switch (move) {
-            case 'N':
-                nextRoom = 0;
-                break;
-            case 'E':
-                nextRoom = 1;
-                break;
-            case 'S':
-                nextRoom = 2;
-                break;
-            case 'W':
-                nextRoom = 3;
-                break;
-            default:
-                console.log('INVALID MOVE', move);
-                process.exit();
-        }
-
-        if (!state.current.rooms[nextRoom]) {
-            state.current.rooms[nextRoom] = new Room();
-            state.rooms.push(state.current.rooms[nextRoom]);
-        }
-        // Set current room as predecessor of the room we're entering
-        state.current.rooms[nextRoom].rooms[(nextRoom + 2) % 4] = state.current;
-        state.current = state.current.rooms[nextRoom];
-
-        if (state.current.shortest.length > pathSegment.length 
-            || state.current.shortest.length < 1) {
-            state.current.shortest = pathSegment;
+const setDistanceOnNeighbours = (room) => {
+    for (let neighbour of room.rooms) {
+        if (!neighbour) continue;
+        
+        if (neighbour.distance === -1 || neighbour.distance > room.distance + 1) {
+            neighbour.distance = room.distance + 1;
+            setDistanceOnNeighbours(neighbour);
         }
     }
-}
+};
 
-state.paths = getPaths(input);
-console.log('INPUT: ', input);
-// console.log('Result', state.paths);
+buildRooms();
+console.log('START Determining distance');
+setDistanceOnNeighbours(s.root);
+console.log(s.rooms);
 
-for (path of state.paths) {
-    state.current = state.root;
-    processPath(path);
-}
+let shortestPath = Array.from(s.rooms.values()).reduce((furthest, room) => {
+    return room.distance > furthest ? room.distance : furthest;
+}, 0);
 
-let shortestPath = state.rooms.reduce((furthest, room) => {
-    return room.shortest.length > furthest.length ? room.shortest : furthest;
-}, '');
-
-console.log('Shorest path to furthest', shortestPath, 'Length', shortestPath.length);
+console.log('Shorest path to furthest', shortestPath);
