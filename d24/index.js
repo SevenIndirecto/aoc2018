@@ -3,6 +3,13 @@ const fs = require('fs');
 const inputFile = process.argv[2] || 'input.txt';
 let input = fs.readFileSync(inputFile, 'utf8').trim().split('\n');
 
+let boost = 50;
+let boostMin = boost;
+let boostMax = null;
+
+const TYPE_IMMUNE = 'immune';
+const TYPE_INFECTION = 'infection';
+
 class Group {
     constructor(opts) {
         this.units = opts.units;
@@ -16,7 +23,7 @@ class Group {
     }
 
     get effectivePower() {
-        return this.units * this.power;
+        return this.units * (this.power + (this.type === TYPE_IMMUNE ? boost : 0));
     }
     
     isWeakTo(type) {
@@ -35,40 +42,45 @@ class Group {
 let immunesys = [];
 let infections = [];
 
-let mode = 'immunesys';
-for (let line of input) {
-    if (line.includes('Infection')) {
-        mode = 'infection';
-    }
+const init = () => {
+    immunesys = [];
+    infections = [];
+    let mode = 'immunesys';
     
+    for (let line of input) {
+        if (line.includes('Infection')) {
+            mode = 'infection';
+        }
+        
 
-    let match = line.match(
-        /(\d+) units each with (\d+) hit points.*with an attack that does (\d+)* (\w+) damage at initiative (\d+)*/);
+        let match = line.match(
+            /(\d+) units each with (\d+) hit points.*with an attack that does (\d+)* (\w+) damage at initiative (\d+)*/);
 
-    if (!match) continue;
+        if (!match) continue;
 
-    let opts = {
-        units: Number(match[1]),
-        hp: Number(match[2]),
-        power: Number(match[3]),
-        attackType: match[4],
-        initiative: Number(match[5]),
-    };
+        let opts = {
+            units: Number(match[1]),
+            hp: Number(match[2]),
+            power: Number(match[3]),
+            attackType: match[4],
+            initiative: Number(match[5]),
+        };
 
-    let immuneTo = line.match(/immune to ([^);]*)/);
-    if (immuneTo) {
-        opts.immuneTo = immuneTo[1].split(', ');
-    }
+        let immuneTo = line.match(/immune to ([^);]*)/);
+        if (immuneTo) {
+            opts.immuneTo = immuneTo[1].split(', ');
+        }
 
-    let weakTo = line.match(/weak to ([^);]*)/);
-    if (weakTo) {
-        opts.weakTo = weakTo[1].split(', ');
-    }
-    
-    if (mode === 'immunesys') {
-        immunesys.push(new Group({...opts, type: 'immune'}));
-    } else {
-        infections.push(new Group({...opts, type: 'infection'}));
+        let weakTo = line.match(/weak to ([^);]*)/);
+        if (weakTo) {
+            opts.weakTo = weakTo[1].split(', ');
+        }
+        
+        if (mode === 'immunesys') {
+            immunesys.push(new Group({...opts, type: TYPE_IMMUNE}));
+        } else {
+            infections.push(new Group({...opts, type: TYPE_INFECTION}));
+        }
     }
 }
 
@@ -145,22 +157,25 @@ const selectTargets = () => {
 const fight = () => {
     const attackOrder = [...immunesys, ...infections];
     attackOrder.sort((a, b) => b.initiative - a.initiative);
-    
+   
+    let totalKilled = 0;
+
     for (let att of attackOrder) {
         let def = att.target;
         if (!def || !att.isAlive() || !def.isAlive() || att.targetMultiplier === 0) continue;
         
-        console.log(`${count} Attacking with ${att.effectivePower * att.targetMultiplier} on ${def.hp} per unit`);
+        // console.log(`Attacking with ${att.effectivePower * att.targetMultiplier} on ${def.hp} per unit`);
 
-        // let killed = Math.min(Math.floor(att.effectivePower * att.targetMultiplier / def.hp), def.units);
-
-        // def.units -= killed;
-        let before = def.units;
-        def.units = Math.ceil(
-           (def.units * def.hp - att.effectivePower * att.targetMultiplier) / def.hp
-        );
-        console.log(`${count} ${att.type} #${att.hp} attacks group ${def.hp}, killing ${before - def.units}`);
+        let killed = Math.min(Math.floor(att.effectivePower * att.targetMultiplier / def.hp), def.units);
+        def.units -= killed;
         
+        // def.units = Math.ceil(
+        //   (def.units * def.hp - att.effectivePower * att.targetMultiplier) / def.hp
+        // );
+        
+        // console.log(`${att.type} #${att.hp} attacks group ${def.hp}, killing ${killed}`);
+        
+        totalKilled += killed;
         if (def.units <= 0) {
             if ('infection' === att.type) {
                 immunesys.splice(immunesys.indexOf(def), 1);
@@ -169,26 +184,48 @@ const fight = () => {
             }
         }
     }
+
+    return totalKilled > 0;
 };
 
 const isArmyAlive = (army) => army.filter(g => g.isAlive()).length > 0;
 
-let count = 0;
-console.log('Start');
+
+while (true) {
+    init();
+    console.log(`Boost ${boost}, [${boostMin}, ${boostMax}]`);
+
+    // Reset
+    while (isArmyAlive(immunesys) && isArmyAlive(infections)) {
+        selectTargets();
+        
+        if(!fight()) {
+            console.log('Stand still');
+            break;
+        }
+    }
+ 
     for (let group of [...immunesys, ...infections].sort((a, b) => b.units - a.units)) {
         console.log(`HP: ${group.hp}, units: ${group.units}, ${group.type}`);
+    }
+    
+    if (isArmyAlive(immunesys) && !isArmyAlive(infections)) {
+        boostMax = boost;
+        boost = Math.ceil((boostMax + boostMin) / 2);
+    } else {
+        boostMin = boost;
+
+        if (!boostMax) {
+            boost *= 2;
+        } else {
+            boost = Math.ceil((boostMax + boostMin) / 2);
+        }
     }
 
-while (isArmyAlive(immunesys) && isArmyAlive(infections)) {
-    selectTargets();
-    fight();
-    
-    count++;
-    for (let group of [...immunesys, ...infections].sort((a, b) => b.units - a.units)) {
-        console.log(`HP: ${group.hp}, units: ${group.units}, ${group.type}`);
-    }
+    if (boostMin === boostMax || Math.abs(boostMin - boostMax) <= 1) break;
 }
 
+console.log('Boost', boost, 'boostMin', boostMin, 'boostMax', boostMax);
 console.log('Winner: ', isArmyAlive(immunesys) ? 'immunesys' : 'infections');
 console.log('Infections', infections.reduce((sum, g) => g.units + sum, 0));
 console.log('Immunesys', immunesys.reduce((sum, g) => g.units + sum, 0));
